@@ -1,6 +1,7 @@
 using KissakiSignup.Web.Data;
 using KissakiSignup.Web.Options;
 using KissakiSignup.Web.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
@@ -12,6 +13,14 @@ builder.Services.Configure<TournamentOptions>(builder.Configuration.GetSection(T
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite($"Data Source={tournament.DatabasePath}"));
 builder.Services.AddSingleton<CsvExportService>();
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
+{
+    options.LoginPath = "/admin/login";
+    options.AccessDeniedPath = "/admin/login";
+    options.Cookie.Name = "KissakiSignup.Admin";
+    options.SlidingExpiration = true;
+});
+builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options => options.AddFixedWindowLimiter("forms", limiterOptions =>
 {
     limiterOptions.PermitLimit = 30;
@@ -31,6 +40,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapRazorPages().RequireRateLimiting("forms");
 app.Run();

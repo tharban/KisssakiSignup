@@ -11,7 +11,7 @@ public static class SubmissionMapper
         {
             Id = Guid.NewGuid(),
             EditToken = CreateEditToken(),
-            Status = RegistrationStatus.Submitted,
+            Status = RegistrationStatus.New,
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };

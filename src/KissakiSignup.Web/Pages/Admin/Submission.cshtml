@@ -1,0 +1,57 @@
+@page "{id:guid}"
+@model KissakiSignup.Web.Pages.Admin.SubmissionModel
+@using KissakiSignup.Web.Domain
+@{
+    ViewData["Title"] = "Meldung";
+}
+
+<h1>@Model.Submission.Club.Name</h1>
+
+<section>
+    <h2>Verein</h2>
+    <p>@Model.Submission.Club.Name, @Model.Submission.Club.City, @Model.Submission.Club.Country</p>
+    <p>@Model.Submission.Club.Address</p>
+    <p>@Model.Submission.Club.Email @Model.Submission.Club.Phone @Model.Submission.Club.Web</p>
+</section>
+
+<section>
+    <h2>Kontakt</h2>
+    <p>@Model.Submission.Contact.Name</p>
+    <p>@Model.Submission.Contact.Email @Model.Submission.Contact.Phone</p>
+    <p>@Model.Submission.Contact.Notes</p>
+</section>
+
+<section>
+    <h2>Teilnehmende</h2>
+    <ul>
+    @foreach (var competitor in Model.Submission.Competitors)
+    {
+        <li>@competitor.FirstName @competitor.LastName (@competitor.IdCard), @competitor.BirthYear, @competitor.RankText</li>
+    }
+    </ul>
+</section>
+
+<section>
+    <h2>Teams</h2>
+    <ul>
+    @foreach (var team in Model.Submission.Teams)
+    {
+        <li>@team.Name (@team.TeamType): @string.Join(", ", team.Members.OrderBy(member => member.Position).Select(member => member.CompetitorIdCard))</li>
+    }
+    </ul>
+</section>
+
+<p><a asp-page="/Edit" asp-route-token="@Model.Submission.EditToken">Private Bearbeitung</a></p>
+
+<form method="post">
+    <div class="mb-3">
+        <label asp-for="Status" class="form-label">Status</label>
+        <select asp-for="Status" class="form-select">
+        @foreach (var status in SubmissionModel.StatusOptions)
+        {
+            <option value="@status">@status</option>
+        }
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Status speichern</button>
+</form>

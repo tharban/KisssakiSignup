@@ -1,0 +1,37 @@
+@page
+@model KissakiSignup.Web.Pages.Admin.IndexModel
+@{
+    ViewData["Title"] = "Meldungen";
+}
+
+<h1>Meldungen</h1>
+
+<p>
+    <a href="/admin/export/clubs.csv">Vereine exportieren</a>
+    <a href="/admin/export/participants.csv">Teilnehmende exportieren</a>
+    <a href="/admin/export/teams.csv">Teams exportieren</a>
+</p>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Verein</th>
+            <th>Ort</th>
+            <th>Teilnehmende</th>
+            <th>Status</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var submission in Model.Submissions)
+    {
+        <tr>
+            <td>@submission.Club.Name</td>
+            <td>@submission.Club.City</td>
+            <td>@submission.Competitors.Count</td>
+            <td>@submission.Status</td>
+            <td><a asp-page="/Admin/Submission" asp-route-id="@submission.Id">Details</a></td>
+        </tr>
+    }
+    </tbody>
+</table>

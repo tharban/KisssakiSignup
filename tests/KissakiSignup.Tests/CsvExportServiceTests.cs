@@ -68,7 +68,7 @@ public class CsvExportServiceTests
 
     private static Submission CreateSubmission() => new()
     {
-        Status = RegistrationStatus.Submitted,
+        Status = RegistrationStatus.New,
         Club = new Club { Name = "Kissaki Kendo", Country = "Germany", City = "Lahr", Email = "info@example.org" },
         Competitors =
         [

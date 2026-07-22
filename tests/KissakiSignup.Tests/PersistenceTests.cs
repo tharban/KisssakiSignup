@@ -9,6 +9,34 @@ namespace KissakiSignup.Tests;
 public class PersistenceTests
 {
     [Fact]
+    public async Task MigrateAsync_MapsLegacyDraftAndSubmittedStatusesToNew()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.MigrateAsync("20260722165638_InitialCreate");
+        context.Submissions.AddRange(
+            CreateLegacySubmission("legacy-draft", 1),
+            CreateLegacySubmission("legacy-submitted", 2));
+        await context.SaveChangesAsync();
+
+        await context.Database.MigrateAsync();
+        context.ChangeTracker.Clear();
+
+        var statuses = await context.Submissions
+            .OrderBy(submission => submission.EditToken)
+            .Select(submission => submission.Status)
+            .ToListAsync();
+
+        statuses.Should().Equal(RegistrationStatus.New, RegistrationStatus.New);
+    }
+
+    [Fact]
     public async Task SaveChanges_PersistsCompleteSubmissionGraph()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -25,7 +53,7 @@ public class PersistenceTests
             {
                 Id = submissionId,
                 EditToken = "edit-token",
-                Status = RegistrationStatus.Draft,
+                Status = RegistrationStatus.New,
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 UpdatedAtUtc = DateTimeOffset.UtcNow,
                 Club = new Club { Name = "Kissaki Kendo" },
@@ -69,4 +97,13 @@ public class PersistenceTests
         saved.Competitors.Single().Categories.Single().Category.Should().Be(CompetitionCategory.Age10To12);
         saved.Teams.Single().Members.Single().CompetitorIdCard.Should().Be("A12345");
     }
+
+    private static Submission CreateLegacySubmission(string editToken, int status) => new()
+    {
+        Id = Guid.NewGuid(),
+        EditToken = editToken,
+        Status = (RegistrationStatus)status,
+        CreatedAtUtc = DateTimeOffset.UtcNow,
+        UpdatedAtUtc = DateTimeOffset.UtcNow
+    };
 }

@@ -2,10 +2,10 @@ namespace KissakiSignup.Web.Domain;
 
 public enum RegistrationStatus
 {
-    Draft = 1,
-    Submitted = 2,
-    Exported = 3,
+    New = 2,
     NeedsReview = 4,
+    Reviewed = 6,
+    Exported = 3,
     Disabled = 5
 }
 

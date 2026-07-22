@@ -18,14 +18,14 @@ public class SubmissionMapperTests
         submission.Competitors[1].IdCardWasGenerated.Should().BeTrue();
         submission.Teams[0].Members[0].CompetitorIdCard.Should().Be("A12345");
         submission.EditToken.Length.Should().BeGreaterThan(32);
-        submission.Status.Should().Be(RegistrationStatus.Submitted);
+        submission.Status.Should().Be(RegistrationStatus.New);
     }
 
     [Fact]
     public void ApplyPayload_PreservesIdentityAndReplacesRegistrationData()
     {
         var existing = SubmissionMapper.CreateSubmission(CreatePayload());
-        existing.Status = RegistrationStatus.Draft;
+        existing.Status = RegistrationStatus.New;
         var id = existing.Id;
         var editToken = existing.EditToken;
         var updatedAtUtc = existing.UpdatedAtUtc;
