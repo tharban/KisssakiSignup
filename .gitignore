@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+.vscode/
+artifacts/
+src/KissakiSignup.Web/App_Data/
+src/KissakiSignup.Web/wwwroot/exports/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
