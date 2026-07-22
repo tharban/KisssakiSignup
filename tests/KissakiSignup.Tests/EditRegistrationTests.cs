@@ -99,7 +99,7 @@ public class EditRegistrationTests
     }
 
     [Fact]
-    public async Task PostEdit_WhenDisabledAfterLoad_PreservesDisabledStatusAndExcludesItFromExports()
+    public async Task PostEdit_WhenDisabledAfterStatusRead_PreservesDisabledStatusAndExcludesItFromExports()
     {
         using var factory = new EditRegistrationWebApplicationFactory();
         var submission = await SeedSubmissionAsync(factory);
@@ -107,7 +107,7 @@ public class EditRegistrationTests
         var antiforgeryToken = await GetAntiforgeryToken(client, $"/edit/{submission.EditToken}");
         var payload = SubmissionMapper.ToPayload(submission);
         payload.Club.Name = "Edited During Disable";
-        factory.DisableSubmissionAfterInitialPostLoad();
+        factory.DisableSubmissionAfterStatusRead();
 
         using var response = await client.PostAsync($"/edit/{submission.EditToken}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -179,16 +179,16 @@ public class EditRegistrationTests
     private sealed class EditRegistrationWebApplicationFactory : WebApplicationFactory<Program>
     {
         private readonly SqliteConnection _connection;
-        private readonly DisableSubmissionAfterInitialPostLoadInterceptor _disableSubmissionInterceptor;
+        private readonly DisableSubmissionAfterStatusReadInterceptor _disableSubmissionInterceptor;
 
         public EditRegistrationWebApplicationFactory()
         {
             _connection = new SqliteConnection($"Data Source=file:edit-registration-{Guid.NewGuid():N}?mode=memory&cache=shared");
-            _disableSubmissionInterceptor = new DisableSubmissionAfterInitialPostLoadInterceptor(_connection.ConnectionString);
+            _disableSubmissionInterceptor = new DisableSubmissionAfterStatusReadInterceptor(_connection.ConnectionString);
             _connection.Open();
         }
 
-        public void DisableSubmissionAfterInitialPostLoad() => _disableSubmissionInterceptor.IsArmed = true;
+        public void DisableSubmissionAfterStatusRead() => _disableSubmissionInterceptor.IsArmed = true;
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -222,9 +222,10 @@ public class EditRegistrationTests
             }
         }
 
-        private sealed class DisableSubmissionAfterInitialPostLoadInterceptor(string connectionString) : DbCommandInterceptor
+        private sealed class DisableSubmissionAfterStatusReadInterceptor(string connectionString) : DbCommandInterceptor
         {
             public bool IsArmed { get; set; }
+            private bool hasReadPostSubmission;
 
             public override InterceptionResult DataReaderDisposing(
                 DbCommand command,
@@ -233,11 +234,15 @@ public class EditRegistrationTests
             {
                 if (IsArmed && command.CommandText.Contains("EditToken", StringComparison.Ordinal))
                 {
+                    hasReadPostSubmission = true;
+                }
+                else if (IsArmed && hasReadPostSubmission && command.CommandText.Contains("Status", StringComparison.Ordinal))
+                {
                     IsArmed = false;
                     using var updateConnection = new SqliteConnection(connectionString);
                     updateConnection.Open();
                     using var updateCommand = updateConnection.CreateCommand();
-                    updateCommand.CommandText = "UPDATE Submissions SET Status = $status";
+                    updateCommand.CommandText = "UPDATE Submissions SET Status = $status, Version = Version + 1";
                     updateCommand.Parameters.AddWithValue("$status", (int)RegistrationStatus.Disabled);
                     updateCommand.ExecuteNonQuery();
                 }

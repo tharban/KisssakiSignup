@@ -20,10 +20,8 @@ public class PersistenceTests
 
         await using var context = new ApplicationDbContext(options);
         await context.Database.MigrateAsync("20260722165638_InitialCreate");
-        context.Submissions.AddRange(
-            CreateLegacySubmission("legacy-draft", 1),
-            CreateLegacySubmission("legacy-submitted", 2));
-        await context.SaveChangesAsync();
+        await CreateLegacySubmissionAsync(connection, "legacy-draft", 1);
+        await CreateLegacySubmissionAsync(connection, "legacy-submitted", 2);
 
         await context.Database.MigrateAsync();
         context.ChangeTracker.Clear();
@@ -98,12 +96,18 @@ public class PersistenceTests
         saved.Teams.Single().Members.Single().CompetitorIdCard.Should().Be("A12345");
     }
 
-    private static Submission CreateLegacySubmission(string editToken, int status) => new()
+    private static async Task CreateLegacySubmissionAsync(SqliteConnection connection, string editToken, int status)
     {
-        Id = Guid.NewGuid(),
-        EditToken = editToken,
-        Status = (RegistrationStatus)status,
-        CreatedAtUtc = DateTimeOffset.UtcNow,
-        UpdatedAtUtc = DateTimeOffset.UtcNow
-    };
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO "Submissions" ("Id", "EditToken", "Status", "CreatedAtUtc", "UpdatedAtUtc", "ExportedAtUtc")
+            VALUES ($id, $editToken, $status, $createdAtUtc, $updatedAtUtc, NULL)
+            """;
+        command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+        command.Parameters.AddWithValue("$editToken", editToken);
+        command.Parameters.AddWithValue("$status", status);
+        command.Parameters.AddWithValue("$createdAtUtc", DateTimeOffset.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("$updatedAtUtc", DateTimeOffset.UtcNow.ToString("O"));
+        await command.ExecuteNonQueryAsync();
+    }
 }

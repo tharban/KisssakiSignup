@@ -12,6 +12,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Submission>(entity =>
         {
             entity.HasIndex(submission => submission.EditToken).IsUnique();
+            entity.Property(submission => submission.Version).IsConcurrencyToken();
             entity.HasOne(submission => submission.Club)
                 .WithOne()
                 .HasForeignKey<Club>(club => club.SubmissionId)
@@ -50,5 +51,27 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(member => member.TeamId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        IncrementSubmissionVersions();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        IncrementSubmissionVersions();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void IncrementSubmissionVersions()
+    {
+        ChangeTracker.DetectChanges();
+
+        foreach (var entry in ChangeTracker.Entries<Submission>().Where(entry => entry.State == EntityState.Modified))
+        {
+            entry.Entity.Version = entry.OriginalValues.GetValue<long>(nameof(Submission.Version)) + 1;
+        }
     }
 }

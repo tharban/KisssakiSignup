@@ -5,6 +5,7 @@ public class Submission
     public Guid Id { get; set; }
     public string EditToken { get; set; } = string.Empty;
     public RegistrationStatus Status { get; set; }
+    public long Version { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public DateTimeOffset? ExportedAtUtc { get; set; }

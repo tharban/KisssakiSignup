@@ -88,7 +88,29 @@ public class EditModel(ApplicationDbContext context) : PageModel
             submission.Status = RegistrationStatus.Disabled;
         }
 
-        await context.SaveChangesAsync();
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            context.ChangeTracker.Clear();
+            var latestSubmission = await context.Submissions
+                .AsNoTracking()
+                .SingleOrDefaultAsync(existing => existing.Id == submission.Id);
+            if (latestSubmission is null)
+            {
+                return NotFound();
+            }
+
+            if (latestSubmission.Status == RegistrationStatus.Disabled)
+            {
+                return RedirectToPage("/Confirmation", new { id = latestSubmission.Id });
+            }
+
+            ModelState.AddModelError(string.Empty, "The registration was changed by another request. Please review and submit it again.");
+            return Page();
+        }
 
         return RedirectToPage("/Confirmation", new { id = submission.Id });
     }
