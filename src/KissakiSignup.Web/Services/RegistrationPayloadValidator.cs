@@ -154,6 +154,20 @@ public static class RegistrationPayloadValidator
         {
             RequireText(team.Name, "team-name-required", "Team name is required.", messages);
             ValidateLength(team.Name, RegistrationPayloadLimits.MaxNameLength, "Team name", messages);
+
+            var occupiedMembers = team.Members
+                .Where(member => !string.IsNullOrWhiteSpace(member.CompetitorClientId))
+                .ToList();
+            if (occupiedMembers.Any(member => member.Position is < 1 or > 3))
+            {
+                messages.Add(new RuleMessage("team-member-position-invalid", "Each occupied team position must be between 1 and 3.", true));
+            }
+
+            if (occupiedMembers.GroupBy(member => member.Position).Any(group => group.Count() > 1))
+            {
+                messages.Add(new RuleMessage("team-member-position-duplicate", "Each occupied team position must be unique.", true));
+            }
+
             if (!Enum.IsDefined(team.TeamType))
             {
                 messages.Add(new RuleMessage("team-type-invalid", "The selected team type is invalid.", true));

@@ -36,7 +36,14 @@
     <ul>
     @foreach (var team in Model.Submission.Teams)
     {
-        <li>@team.Name (@team.TeamType): @string.Join(", ", team.Members.OrderBy(member => member.Position).Select(member => member.CompetitorIdCard))</li>
+        var missingPositions = Enumerable.Range(1, 3).Except(team.Members.Select(member => member.Position)).ToList();
+        <li>
+            @team.Name (@team.TeamType): Positionen: @string.Join(", ", team.Members.OrderBy(member => member.Position).Select(member => $"{member.Position}: {member.CompetitorIdCard}"))
+            @if (missingPositions.Count > 0)
+            {
+                <strong>Unvollstaendiges Team: Positionen @string.Join(", ", missingPositions) fehlen.</strong>
+            }
+        </li>
     }
     </ul>
 </section>

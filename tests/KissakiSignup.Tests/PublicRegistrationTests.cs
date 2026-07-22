@@ -194,6 +194,69 @@ public class PublicRegistrationTests
         messages.Should().NotContain(message => message.Code == "adult-team-dan-position");
     }
 
+    [Fact]
+    public async Task PostIndex_WithDuplicateNonemptyTeamPositions_ReturnsValidationErrorWithoutSaving()
+    {
+        var payload = CreateValidPayload();
+        payload.Competitors.Add(new CompetitorPayload
+        {
+            ClientId = "mia",
+            FirstName = "Mia",
+            LastName = "Muster",
+            IdCard = "B12345",
+            BirthYear = 2015,
+            RankText = "6. Kyu",
+            Categories = [CompetitionCategory.Age10To12]
+        });
+        payload.Teams =
+        [
+            new TeamPayload
+            {
+                Name = "Team", TeamType = TeamType.Youth,
+                Members =
+                [
+                    new TeamMemberPayload { Position = 1, CompetitorClientId = "max" },
+                    new TeamMemberPayload { Position = 1, CompetitorClientId = "mia" }
+                ]
+            }
+        ];
+
+        await AssertPostIndexValidationErrorAsync(payload, "Each occupied team position must be unique.");
+    }
+
+    [Fact]
+    public async Task PostIndex_WithOutOfRangeNonemptyTeamPosition_ReturnsValidationErrorWithoutSaving()
+    {
+        var payload = CreateValidPayload();
+        payload.Teams =
+        [
+            new TeamPayload
+            {
+                Name = "Team", TeamType = TeamType.Youth,
+                Members = [new TeamMemberPayload { Position = 4, CompetitorClientId = "max" }]
+            }
+        ];
+
+        await AssertPostIndexValidationErrorAsync(payload, "Each occupied team position must be between 1 and 3.");
+    }
+
+    [Fact]
+    public async Task GetPrivacy_WithMixedCasePath_SharesRateLimitPartition()
+    {
+        using var factory = new RegistrationWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            using var response = await client.GetAsync("/privacy");
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        using var mixedCaseResponse = await client.GetAsync("/PRIVACY");
+
+        mixedCaseResponse.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
     private static async Task AssertMalformedPayloadReturnsValidationErrorsAsync(string payloadJson, bool expectsInvalidEntryError)
     {
         using var factory = new RegistrationWebApplicationFactory();

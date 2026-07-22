@@ -78,6 +78,16 @@ public class EditModel(ApplicationDbContext context) : PageModel
         }
 
         SubmissionMapper.ApplyPayload(submission, payload);
+        var currentStatus = await context.Submissions
+            .AsNoTracking()
+            .Where(existing => existing.Id == submission.Id)
+            .Select(existing => existing.Status)
+            .SingleAsync();
+        if (currentStatus == RegistrationStatus.Disabled)
+        {
+            submission.Status = RegistrationStatus.Disabled;
+        }
+
         await context.SaveChangesAsync();
 
         return RedirectToPage("/Confirmation", new { id = submission.Id });

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Data.Common;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FluentAssertions;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -96,6 +98,33 @@ public class EditRegistrationTests
         csv.Should().NotContain("Max;Mustermann");
     }
 
+    [Fact]
+    public async Task PostEdit_WhenDisabledAfterLoad_PreservesDisabledStatusAndExcludesItFromExports()
+    {
+        using var factory = new EditRegistrationWebApplicationFactory();
+        var submission = await SeedSubmissionAsync(factory);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var antiforgeryToken = await GetAntiforgeryToken(client, $"/edit/{submission.EditToken}");
+        var payload = SubmissionMapper.ToPayload(submission);
+        payload.Club.Name = "Edited During Disable";
+        factory.DisableSubmissionAfterInitialPostLoad();
+
+        using var response = await client.PostAsync($"/edit/{submission.EditToken}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["PayloadJson"] = JsonSerializer.Serialize(payload)
+        }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var persisted = await GetSubmissionAsync(factory, submission.Id);
+        persisted.Status.Should().Be(RegistrationStatus.Disabled);
+
+        using var scope = factory.Services.CreateScope();
+        var exporter = scope.ServiceProvider.GetRequiredService<CsvExportService>();
+        var csv = System.Text.Encoding.UTF8.GetString(exporter.ExportParticipants([persisted]));
+        csv.Should().NotContain("Max;Mustermann");
+    }
+
     private static async Task<Submission> SeedSubmissionAsync(EditRegistrationWebApplicationFactory factory)
     {
         using var scope = factory.Services.CreateScope();
@@ -149,12 +178,17 @@ public class EditRegistrationTests
 
     private sealed class EditRegistrationWebApplicationFactory : WebApplicationFactory<Program>
     {
-        private readonly SqliteConnection _connection = new("Data Source=:memory:");
+        private readonly SqliteConnection _connection;
+        private readonly DisableSubmissionAfterInitialPostLoadInterceptor _disableSubmissionInterceptor;
 
         public EditRegistrationWebApplicationFactory()
         {
+            _connection = new SqliteConnection($"Data Source=file:edit-registration-{Guid.NewGuid():N}?mode=memory&cache=shared");
+            _disableSubmissionInterceptor = new DisableSubmissionAfterInitialPostLoadInterceptor(_connection.ConnectionString);
             _connection.Open();
         }
+
+        public void DisableSubmissionAfterInitialPostLoad() => _disableSubmissionInterceptor.IsArmed = true;
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -170,7 +204,11 @@ public class EditRegistrationTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
-                services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(_connection));
+                services.AddDbContext<ApplicationDbContext>(options =>
+                {
+                    options.UseSqlite(_connection);
+                    options.AddInterceptors(_disableSubmissionInterceptor);
+                });
             });
         }
 
@@ -181,6 +219,30 @@ public class EditRegistrationTests
             if (disposing)
             {
                 _connection.Dispose();
+            }
+        }
+
+        private sealed class DisableSubmissionAfterInitialPostLoadInterceptor(string connectionString) : DbCommandInterceptor
+        {
+            public bool IsArmed { get; set; }
+
+            public override InterceptionResult DataReaderDisposing(
+                DbCommand command,
+                DataReaderDisposingEventData eventData,
+                InterceptionResult result)
+            {
+                if (IsArmed && command.CommandText.Contains("EditToken", StringComparison.Ordinal))
+                {
+                    IsArmed = false;
+                    using var updateConnection = new SqliteConnection(connectionString);
+                    updateConnection.Open();
+                    using var updateCommand = updateConnection.CreateCommand();
+                    updateCommand.CommandText = "UPDATE Submissions SET Status = $status";
+                    updateCommand.Parameters.AddWithValue("$status", (int)RegistrationStatus.Disabled);
+                    updateCommand.ExecuteNonQuery();
+                }
+
+                return base.DataReaderDisposing(command, eventData, result);
             }
         }
     }

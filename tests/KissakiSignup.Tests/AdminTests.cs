@@ -87,6 +87,20 @@ public class AdminTests
         saved.AdminNotes.Should().ContainSingle(note => note.Text == "Status geaendert auf NeedsReview.");
     }
 
+    [Fact]
+    public async Task GetSubmission_WithIncompleteTeam_ShowsOccupiedPositionsAndWarning()
+    {
+        using var factory = new AdminWebApplicationFactory();
+        var submission = await SeedIncompleteTeamSubmissionAsync(factory);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await LoginAsync(client);
+
+        var html = await client.GetStringAsync($"/admin/submission/{submission.Id}");
+
+        html.Should().Contain("Positionen: 1: A12345");
+        html.Should().Contain("Unvollstaendiges Team: Positionen 2, 3 fehlen.");
+    }
+
     private static async Task LoginAsync(HttpClient client)
     {
         var antiforgeryToken = await GetAntiforgeryTokenAsync(client, "/admin/login");
@@ -113,6 +127,36 @@ public class AdminTests
                 {
                     ClientId = "max", FirstName = "Max", LastName = "Mustermann", IdCard = "A12345",
                     BirthYear = 2015, RankText = "6. Kyu", Categories = [CompetitionCategory.Age10To12]
+                }
+            ]
+        });
+        context.Submissions.Add(submission);
+        await context.SaveChangesAsync();
+        return submission;
+    }
+
+    private static async Task<Submission> SeedIncompleteTeamSubmissionAsync(AdminWebApplicationFactory factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var submission = SubmissionMapper.CreateSubmission(new RegistrationPayload
+        {
+            Club = new ClubPayload { Name = "Kissaki Kendo", City = "Lahr" },
+            Contact = new ContactPayload { Name = "Erika Beispiel", Email = "erika@example.org" },
+            Competitors =
+            [
+                new CompetitorPayload
+                {
+                    ClientId = "max", FirstName = "Max", LastName = "Mustermann", IdCard = "A12345",
+                    BirthYear = 2015, RankText = "6. Kyu", Categories = [CompetitionCategory.Age10To12]
+                }
+            ],
+            Teams =
+            [
+                new TeamPayload
+                {
+                    Name = "Incomplete Team", TeamType = TeamType.Youth,
+                    Members = [new TeamMemberPayload { Position = 1, CompetitorClientId = "max" }]
                 }
             ]
         });

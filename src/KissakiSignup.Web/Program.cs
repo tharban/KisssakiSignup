@@ -30,7 +30,8 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("forms", httpContext =>
     {
         var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var partitionKey = $"{clientIp}:{httpContext.Request.Method}:{httpContext.Request.PathBase}{httpContext.Request.Path}";
+        var path = string.Concat(httpContext.Request.PathBase.Value, httpContext.Request.Path.Value).ToUpperInvariant();
+        var partitionKey = $"{clientIp}:{httpContext.Request.Method}:{path}";
         return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = 30,
