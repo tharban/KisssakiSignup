@@ -8,7 +8,10 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var tournament = builder.Configuration.GetSection(TournamentOptions.SectionName).Get<TournamentOptions>() ?? new TournamentOptions();
-builder.Services.AddRazorPages();
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.AddPageRoute("/Admin/Export", "/admin/export/{file}");
+});
 builder.Services.Configure<TournamentOptions>(builder.Configuration.GetSection(TournamentOptions.SectionName));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite($"Data Source={tournament.DatabasePath}"));
