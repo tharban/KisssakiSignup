@@ -50,6 +50,34 @@ public class SubmissionMapperTests
     }
 
     [Fact]
+    public void ApplyPayload_PreservesDisabledStatus()
+    {
+        var existing = SubmissionMapper.CreateSubmission(CreatePayload());
+        existing.Status = RegistrationStatus.Disabled;
+
+        SubmissionMapper.ApplyPayload(existing, CreatePayload());
+
+        existing.Status.Should().Be(RegistrationStatus.Disabled);
+    }
+
+    [Fact]
+    public void CreateSubmission_DoesNotPersistEmptyOrUnknownTeamMemberReferences()
+    {
+        var payload = CreatePayload();
+        payload.Teams[0].Members =
+        [
+            new TeamMemberPayload { Position = 1, CompetitorClientId = "first" },
+            new TeamMemberPayload { Position = 2, CompetitorClientId = "" },
+            new TeamMemberPayload { Position = 3, CompetitorClientId = "unknown" }
+        ];
+
+        var submission = SubmissionMapper.CreateSubmission(payload);
+
+        submission.Teams[0].Members.Should().ContainSingle();
+        submission.Teams[0].Members[0].CompetitorIdCard.Should().Be("A12345");
+    }
+
+    [Fact]
     public void ToPayload_UsesIdCardAsClientId()
     {
         var submission = SubmissionMapper.CreateSubmission(CreatePayload());

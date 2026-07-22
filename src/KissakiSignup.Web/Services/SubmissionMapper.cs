@@ -24,7 +24,10 @@ public static class SubmissionMapper
     {
         ApplyPayloadData(existing, payload);
         existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
-        existing.Status = RegistrationStatus.NeedsReview;
+        if (existing.Status != RegistrationStatus.Disabled)
+        {
+            existing.Status = RegistrationStatus.NeedsReview;
+        }
     }
 
     public static RegistrationPayload ToPayload(Submission submission) => new()
@@ -81,7 +84,11 @@ public static class SubmissionMapper
             var idCard = IdCardService.Normalize(competitor.IdCard);
             var wasGenerated = string.IsNullOrEmpty(idCard);
             idCard = wasGenerated ? IdCardService.CreateTemporaryId(submission.Id, index) : idCard;
-            idCardsByClientId[Trim(competitor.ClientId)] = idCard;
+            var clientId = Trim(competitor.ClientId);
+            if (!string.IsNullOrEmpty(clientId) && !idCardsByClientId.ContainsKey(clientId))
+            {
+                idCardsByClientId[clientId] = idCard;
+            }
 
             return new Competitor
             {
@@ -103,11 +110,14 @@ public static class SubmissionMapper
             SubmissionId = submission.Id,
             Name = Trim(team.Name),
             TeamType = team.TeamType,
-            Members = team.Members.Select(member => new TeamMember
-            {
-                Position = member.Position,
-                CompetitorIdCard = idCardsByClientId.GetValueOrDefault(Trim(member.CompetitorClientId), Trim(member.CompetitorClientId))
-            }).ToList()
+            Members = team.Members
+                .Select(member => (Member: member, ClientId: Trim(member.CompetitorClientId)))
+                .Where(item => !string.IsNullOrEmpty(item.ClientId) && idCardsByClientId.TryGetValue(item.ClientId, out _))
+                .Select(item => new TeamMember
+                {
+                    Position = item.Member.Position,
+                    CompetitorIdCard = idCardsByClientId[item.ClientId]
+                }).ToList()
         }).ToList();
     }
 

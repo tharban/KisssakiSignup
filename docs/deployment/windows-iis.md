@@ -57,13 +57,29 @@ Use the double-underscore names exactly as shown. Do not store the production ad
 
 ## Backups and KTM exports
 
-Before every KTM export, make a dated copy of the SQLite database:
+Take a dated backup before every KTM export. Do not copy only the main `.sqlite` file while the site is running: SQLite may have uncheckpointed data in `-wal` and `-shm` files.
 
-```text
-C:\inetpub\KissakiSignup\App_Data\kissaki-registration.sqlite
+For a simple offline backup, stop the IIS site or its application pool first, copy the database to a restricted directory outside the application, then start it again. A clean stop allows SQLite to close and checkpoint the database before the copy.
+
+```powershell
+Stop-WebAppPool -Name '<KissakiSignup application pool>'
+Copy-Item 'C:\inetpub\KissakiSignup\App_Data\kissaki-registration.sqlite' 'D:\KissakiBackups\kissaki-registration-YYYY-MM-DD.sqlite'
+Start-WebAppPool -Name '<KissakiSignup application pool>'
 ```
 
-Store the backup outside the application directory, with restricted access. Take the backup before downloading the export files from:
+Alternatively, while the site is running, use SQLite's online backup command rather than a file copy. It creates a consistent copy even when WAL mode is active:
+
+```powershell
+sqlite3 'C:\inetpub\KissakiSignup\App_Data\kissaki-registration.sqlite' ".backup 'D:\KissakiBackups\kissaki-registration-YYYY-MM-DD.sqlite'"
+```
+
+After either method, check the backup and periodically test a restore on a copy while the site is stopped:
+
+```powershell
+sqlite3 'D:\KissakiBackups\kissaki-registration-YYYY-MM-DD.sqlite' 'PRAGMA integrity_check;'
+```
+
+Expect `ok`. Store backups outside the application directory with restricted access. Take the backup before downloading the export files from:
 
 ```text
 /admin/export/clubs.csv

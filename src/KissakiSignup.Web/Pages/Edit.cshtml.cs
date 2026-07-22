@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KissakiSignup.Web.Pages;
 
+[RequestSizeLimit(RegistrationPayloadLimits.MaxRequestBodyBytes)]
 public class EditModel(ApplicationDbContext context) : PageModel
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -43,6 +44,12 @@ public class EditModel(ApplicationDbContext context) : PageModel
         InitialPayloadJson = JsonSerializer.Serialize(SubmissionMapper.ToPayload(submission), JsonOptions);
 
         RegistrationPayload? payload;
+        if (PayloadJson.Length > RegistrationPayloadLimits.MaxPayloadJsonLength)
+        {
+            ModelState.AddModelError(string.Empty, "The registration data is too large.");
+            return Page();
+        }
+
         try
         {
             payload = JsonSerializer.Deserialize<RegistrationPayload>(PayloadJson, JsonOptions);

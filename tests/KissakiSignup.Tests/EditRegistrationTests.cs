@@ -69,6 +69,33 @@ public class EditRegistrationTests
         html.Should().Contain("window.initialRegistrationPayload = {\"club\"");
     }
 
+    [Fact]
+    public async Task PostEdit_ForDisabledSubmission_PreservesDisabledStatusAndExcludesItFromExports()
+    {
+        using var factory = new EditRegistrationWebApplicationFactory();
+        var submission = await SeedSubmissionAsync(factory);
+        await SetStatusAsync(factory, submission.Id, RegistrationStatus.Disabled);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var antiforgeryToken = await GetAntiforgeryToken(client, $"/edit/{submission.EditToken}");
+        var payload = SubmissionMapper.ToPayload(submission);
+        payload.Club.Name = "Edited Disabled Club";
+
+        using var response = await client.PostAsync($"/edit/{submission.EditToken}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["PayloadJson"] = JsonSerializer.Serialize(payload)
+        }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var persisted = await GetSubmissionAsync(factory, submission.Id);
+        persisted.Status.Should().Be(RegistrationStatus.Disabled);
+
+        using var scope = factory.Services.CreateScope();
+        var exporter = scope.ServiceProvider.GetRequiredService<CsvExportService>();
+        var csv = System.Text.Encoding.UTF8.GetString(exporter.ExportParticipants([persisted]));
+        csv.Should().NotContain("Max;Mustermann");
+    }
+
     private static async Task<Submission> SeedSubmissionAsync(EditRegistrationWebApplicationFactory factory)
     {
         using var scope = factory.Services.CreateScope();
@@ -83,7 +110,19 @@ public class EditRegistrationTests
     {
         using var scope = factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await context.Submissions.Include(submission => submission.Club).SingleAsync(submission => submission.Id == id);
+        return await context.Submissions
+            .Include(submission => submission.Club)
+            .Include(submission => submission.Competitors)
+            .SingleAsync(submission => submission.Id == id);
+    }
+
+    private static async Task SetStatusAsync(EditRegistrationWebApplicationFactory factory, Guid id, RegistrationStatus status)
+    {
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var submission = await context.Submissions.SingleAsync(submission => submission.Id == id);
+        submission.Status = status;
+        await context.SaveChangesAsync();
     }
 
     private static async Task<string> GetAntiforgeryToken(HttpClient client, string path)

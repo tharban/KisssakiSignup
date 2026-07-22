@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace KissakiSignup.Web.Pages;
 
+[RequestSizeLimit(RegistrationPayloadLimits.MaxRequestBodyBytes)]
 public class IndexModel(ApplicationDbContext context, IOptions<TournamentOptions> tournamentOptions) : PageModel
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -39,6 +40,12 @@ public class IndexModel(ApplicationDbContext context, IOptions<TournamentOptions
         }
 
         RegistrationPayload? payload;
+        if (PayloadJson.Length > RegistrationPayloadLimits.MaxPayloadJsonLength)
+        {
+            ModelState.AddModelError(string.Empty, "The registration data is too large.");
+            return Page();
+        }
+
         try
         {
             payload = JsonSerializer.Deserialize<RegistrationPayload>(PayloadJson, JsonOptions);
@@ -73,102 +80,5 @@ public class IndexModel(ApplicationDbContext context, IOptions<TournamentOptions
         return RedirectToPage("/Confirmation", new { id = submission.Id });
     }
 
-    public static IReadOnlyList<RuleMessage> Validate(RegistrationPayload payload)
-    {
-        var hasNullEntries = NormalizeNestedValues(payload);
-        var messages = new List<RuleMessage>();
-
-        if (hasNullEntries)
-        {
-            messages.Add(new RuleMessage("invalid-registration-data", "The registration data contains invalid entries.", true));
-        }
-
-        if (string.IsNullOrWhiteSpace(payload.Club.Name))
-        {
-            messages.Add(new RuleMessage("club-name-required", "Club name is required.", true));
-        }
-
-        if (string.IsNullOrWhiteSpace(payload.Club.City))
-        {
-            messages.Add(new RuleMessage("club-city-required", "Club city is required.", true));
-        }
-
-        if (string.IsNullOrWhiteSpace(payload.Contact.Name))
-        {
-            messages.Add(new RuleMessage("contact-name-required", "Contact name is required.", true));
-        }
-
-        if (string.IsNullOrWhiteSpace(payload.Contact.Email))
-        {
-            messages.Add(new RuleMessage("contact-email-required", "Contact email is required.", true));
-        }
-
-        if (payload.Competitors.Count == 0)
-        {
-            messages.Add(new RuleMessage("competitor-required", "At least one competitor is required.", true));
-        }
-
-        foreach (var competitor in payload.Competitors)
-        {
-            messages.AddRange(TournamentRules.ValidateCompetitor(
-                competitor.BirthYear,
-                competitor.RankText,
-                competitor.Categories,
-                competitor.IdCard));
-        }
-
-        foreach (var team in payload.Teams)
-        {
-            var members = team.Members.Select(member =>
-            {
-                var competitor = payload.Competitors.FirstOrDefault(candidate =>
-                    string.Equals(candidate.ClientId, member.CompetitorClientId, StringComparison.Ordinal));
-
-                return new TeamMemberInput(
-                    member.Position,
-                    competitor?.BirthYear ?? 0,
-                    competitor?.RankText ?? string.Empty);
-            });
-
-            messages.AddRange(TournamentRules.ValidateTeam(team.TeamType, members));
-        }
-
-        return messages;
-    }
-
-    private static bool NormalizeNestedValues(RegistrationPayload payload)
-    {
-        var hasNullEntries = false;
-        payload.Club ??= new ClubPayload();
-        payload.Contact ??= new ContactPayload();
-        payload.Competitors ??= [];
-        payload.Teams ??= [];
-
-        if (payload.Competitors.RemoveAll(competitor => competitor is null) > 0)
-        {
-            hasNullEntries = true;
-        }
-
-        if (payload.Teams.RemoveAll(team => team is null) > 0)
-        {
-            hasNullEntries = true;
-        }
-
-        foreach (var competitor in payload.Competitors)
-        {
-            competitor.Categories ??= [];
-        }
-
-        foreach (var team in payload.Teams)
-        {
-            team.Members ??= [];
-
-            if (team.Members.RemoveAll(member => member is null) > 0)
-            {
-                hasNullEntries = true;
-            }
-        }
-
-        return hasNullEntries;
-    }
+    public static IReadOnlyList<RuleMessage> Validate(RegistrationPayload payload) => RegistrationPayloadValidator.Validate(payload);
 }

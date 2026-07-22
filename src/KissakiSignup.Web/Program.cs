@@ -24,12 +24,22 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     options.SlidingExpiration = true;
 });
 builder.Services.AddAuthorization();
-builder.Services.AddRateLimiter(options => options.AddFixedWindowLimiter("forms", limiterOptions =>
+builder.Services.AddRateLimiter(options =>
 {
-    limiterOptions.PermitLimit = 30;
-    limiterOptions.Window = TimeSpan.FromMinutes(1);
-    limiterOptions.QueueLimit = 0;
-}));
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("forms", httpContext =>
+    {
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var partitionKey = $"{clientIp}:{httpContext.Request.Method}:{httpContext.Request.PathBase}{httpContext.Request.Path}";
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        });
+    });
+});
 
 var app = builder.Build();
 await DbInitializer.InitializeAsync(app.Services);
