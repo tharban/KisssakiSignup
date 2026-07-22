@@ -64,8 +64,13 @@ public class SubmissionMapperTests
     {
         Club = new ClubPayload
         {
-            Name = " Kissaki Kendo ", City = " Lahr ", Country = " ", Address = " ",
-            Email = " info@example.org ", Phone = " ", Web = " "
+            Name = " Kissaki Kendo ",
+            City = " Lahr ",
+            Country = " ",
+            Address = " ",
+            Email = " info@example.org ",
+            Phone = " ",
+            Web = " "
         },
         Contact = new ContactPayload { Name = " Erika Beispiel ", Email = " erika@example.org ", Phone = " 123 ", Notes = " Notes " },
         Competitors =

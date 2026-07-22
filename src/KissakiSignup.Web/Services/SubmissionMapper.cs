@@ -31,25 +31,41 @@ public static class SubmissionMapper
     {
         Club = new ClubPayload
         {
-            Name = submission.Club.Name, City = submission.Club.City, Country = submission.Club.Country,
-            Address = submission.Club.Address, Email = submission.Club.Email, Phone = submission.Club.Phone, Web = submission.Club.Web
+            Name = submission.Club.Name,
+            City = submission.Club.City,
+            Country = submission.Club.Country,
+            Address = submission.Club.Address,
+            Email = submission.Club.Email,
+            Phone = submission.Club.Phone,
+            Web = submission.Club.Web
         },
         Contact = new ContactPayload
         {
-            Name = submission.Contact.Name, Email = submission.Contact.Email, Phone = submission.Contact.Phone, Notes = submission.Contact.Notes
+            Name = submission.Contact.Name,
+            Email = submission.Contact.Email,
+            Phone = submission.Contact.Phone,
+            Notes = submission.Contact.Notes
         },
         Competitors = submission.Competitors.Select(competitor => new CompetitorPayload
         {
-            ClientId = competitor.IdCard, FirstName = competitor.FirstName, LastName = competitor.LastName, IdCard = competitor.IdCard,
-            BirthYear = competitor.BirthYear, RankText = competitor.RankText, HasBogu = competitor.HasBogu, Notes = competitor.Notes,
+            ClientId = competitor.IdCard,
+            FirstName = competitor.FirstName,
+            LastName = competitor.LastName,
+            IdCard = competitor.IdCard,
+            BirthYear = competitor.BirthYear,
+            RankText = competitor.RankText,
+            HasBogu = competitor.HasBogu,
+            Notes = competitor.Notes,
             Categories = competitor.Categories.Select(category => category.Category).ToList()
         }).ToList(),
         Teams = submission.Teams.Select(team => new TeamPayload
         {
-            Name = team.Name, TeamType = team.TeamType,
+            Name = team.Name,
+            TeamType = team.TeamType,
             Members = team.Members.Select(member => new TeamMemberPayload
             {
-                Position = member.Position, CompetitorClientId = member.CompetitorIdCard
+                Position = member.Position,
+                CompetitorClientId = member.CompetitorIdCard
             }).ToList()
         }).ToList()
     };
