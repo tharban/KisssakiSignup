@@ -1,4 +1,5 @@
 using System.Net;
+using System.Data.Common;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using KissakiSignup.Web.Data;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -85,6 +87,33 @@ public class AdminTests
         var saved = await GetSubmissionAsync(factory, submission.Id);
         saved.Status.Should().Be(RegistrationStatus.NeedsReview);
         saved.AdminNotes.Should().ContainSingle(note => note.Text == "Status geaendert auf NeedsReview.");
+    }
+
+    [Fact]
+    public async Task PostSubmissionStatus_WhenVersionAdvancesAfterLoad_DisablesSubmissionAndExcludesItFromExports()
+    {
+        using var factory = new AdminWebApplicationFactory();
+        var submission = await SeedSubmissionAsync(factory);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await LoginAsync(client);
+        var antiforgeryToken = await GetAntiforgeryTokenAsync(client, $"/admin/submission/{submission.Id}");
+        factory.AdvanceSubmissionVersionAfterStatusRead();
+
+        using var response = await client.PostAsync($"/admin/submission/{submission.Id}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Status"] = nameof(RegistrationStatus.Disabled)
+        }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var saved = await GetSubmissionAsync(factory, submission.Id);
+        saved.Status.Should().Be(RegistrationStatus.Disabled);
+        saved.AdminNotes.Should().ContainSingle(note => note.Text == "Status geaendert auf Disabled.");
+
+        using var scope = factory.Services.CreateScope();
+        var exporter = scope.ServiceProvider.GetRequiredService<CsvExportService>();
+        var csv = System.Text.Encoding.UTF8.GetString(exporter.ExportParticipants([saved]));
+        csv.Should().NotContain("Max;Mustermann");
     }
 
     [Fact]
@@ -184,14 +213,19 @@ public class AdminTests
 
     private sealed class AdminWebApplicationFactory : WebApplicationFactory<Program>
     {
-        private readonly SqliteConnection _connection = new("Data Source=:memory:");
+        private readonly SqliteConnection _connection;
+        private readonly AdvanceSubmissionVersionAfterStatusReadInterceptor _advanceSubmissionVersionInterceptor;
         private readonly string _adminPassword;
 
         public AdminWebApplicationFactory(string adminPassword = "admin-password")
         {
             _adminPassword = adminPassword;
+            _connection = new SqliteConnection($"Data Source=file:admin-{Guid.NewGuid():N}?mode=memory&cache=shared");
+            _advanceSubmissionVersionInterceptor = new AdvanceSubmissionVersionAfterStatusReadInterceptor(_connection.ConnectionString);
             _connection.Open();
         }
+
+        public void AdvanceSubmissionVersionAfterStatusRead() => _advanceSubmissionVersionInterceptor.IsArmed = true;
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -206,7 +240,11 @@ public class AdminTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
-                services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(_connection));
+                services.AddDbContext<ApplicationDbContext>(options =>
+                {
+                    options.UseSqlite(_connection);
+                    options.AddInterceptors(_advanceSubmissionVersionInterceptor);
+                });
             });
         }
 
@@ -217,6 +255,29 @@ public class AdminTests
             if (disposing)
             {
                 _connection.Dispose();
+            }
+        }
+
+        private sealed class AdvanceSubmissionVersionAfterStatusReadInterceptor(string connectionString) : DbCommandInterceptor
+        {
+            public bool IsArmed { get; set; }
+
+            public override InterceptionResult DataReaderDisposing(
+                DbCommand command,
+                DataReaderDisposingEventData eventData,
+                InterceptionResult result)
+            {
+                if (IsArmed && command.CommandText.Contains("AdminNote", StringComparison.Ordinal))
+                {
+                    IsArmed = false;
+                    using var updateConnection = new SqliteConnection(connectionString);
+                    updateConnection.Open();
+                    using var updateCommand = updateConnection.CreateCommand();
+                    updateCommand.CommandText = "UPDATE Submissions SET Version = Version + 1";
+                    updateCommand.ExecuteNonQuery();
+                }
+
+                return base.DataReaderDisposing(command, eventData, result);
             }
         }
     }

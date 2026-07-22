@@ -54,18 +54,42 @@ public class SubmissionModel(ApplicationDbContext context) : PageModel
 
         if (submission.Status != Status)
         {
-            submission.Status = Status;
-            submission.UpdatedAtUtc = DateTimeOffset.UtcNow;
-            submission.AdminNotes.Add(new AdminNote
+            ApplyStatusChange(submission);
+
+            try
             {
-                SubmissionId = submission.Id,
-                CreatedAtUtc = DateTimeOffset.UtcNow,
-                Text = $"Status geaendert auf {Status}."
-            });
-            await context.SaveChangesAsync();
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                context.ChangeTracker.Clear();
+                submission = await LoadSubmissionAsync(id);
+                if (submission is null)
+                {
+                    return NotFound();
+                }
+
+                if (submission.Status != Status)
+                {
+                    ApplyStatusChange(submission);
+                    await context.SaveChangesAsync();
+                }
+            }
         }
 
         return RedirectToPage(new { id });
+    }
+
+    private void ApplyStatusChange(Submission submission)
+    {
+        submission.Status = Status;
+        submission.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        submission.AdminNotes.Add(new AdminNote
+        {
+            SubmissionId = submission.Id,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            Text = $"Status geaendert auf {Status}."
+        });
     }
 
     private Task<Submission?> LoadSubmissionAsync(Guid id) => context.Submissions
