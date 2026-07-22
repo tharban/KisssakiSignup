@@ -29,3 +29,12 @@ body {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
 }
+
+.form-shell { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; }
+.wizard-step, .entry, .notice { border: 1px solid #d8d8d8; border-radius: 6px; padding: 1rem; margin: 1rem 0; background: #fff; }
+label { display: grid; gap: .35rem; margin: .75rem 0; font-weight: 600; }
+input, select, textarea, button { font: inherit; }
+input, select, textarea { border: 1px solid #b8b8b8; border-radius: 4px; padding: .55rem .65rem; }
+.wizard-nav { display: flex; gap: .75rem; justify-content: flex-end; }
+.validation { color: #9b1c1c; }
+.honeypot { position: absolute; left: -9999px; }

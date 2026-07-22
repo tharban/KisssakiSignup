@@ -1,10 +1,95 @@
-﻿@page
+@page
 @model IndexModel
+@using System.Text.Json
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Kissaki Kendo Cup Anmeldung";
+    var antiforgeryToken = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="form-shell">
+    <h1>Kissaki Kendo Cup Anmeldung</h1>
+
+    <form id="registration-form" method="post" asp-antiforgery="false">
+        <input name="__RequestVerificationToken" type="hidden" value="@antiforgeryToken" />
+        <input id="payload-json" name="PayloadJson" type="hidden" />
+        <label class="honeypot" for="website">Website
+            <input id="website" name="website" type="text" autocomplete="off" tabindex="-1" />
+        </label>
+
+        <div asp-validation-summary="All" class="validation"></div>
+
+        <section class="wizard-step" data-step="0">
+            <h2>1. Verein</h2>
+            <label for="club-name">Vereinsname
+                <input id="club-name" data-field="club.name" type="text" required />
+            </label>
+            <label for="club-city">Ort
+                <input id="club-city" data-field="club.city" type="text" required />
+            </label>
+            <label for="club-country">Land
+                <input id="club-country" data-field="club.country" type="text" />
+            </label>
+            <label for="club-address">Adresse
+                <textarea id="club-address" data-field="club.address" rows="2"></textarea>
+            </label>
+            <label for="club-email">Vereins-E-Mail
+                <input id="club-email" data-field="club.email" type="email" />
+            </label>
+            <label for="club-phone">Telefon
+                <input id="club-phone" data-field="club.phone" type="tel" />
+            </label>
+            <label for="club-web">Webseite
+                <input id="club-web" data-field="club.web" type="url" />
+            </label>
+        </section>
+
+        <section class="wizard-step" data-step="1" hidden>
+            <h2>2. Kontakt</h2>
+            <label for="contact-name">Name
+                <input id="contact-name" data-field="contact.name" type="text" required />
+            </label>
+            <label for="contact-email">E-Mail
+                <input id="contact-email" data-field="contact.email" type="email" required />
+            </label>
+            <label for="contact-phone">Telefon
+                <input id="contact-phone" data-field="contact.phone" type="tel" />
+            </label>
+            <label for="contact-notes">Hinweise
+                <textarea id="contact-notes" data-field="contact.notes" rows="3"></textarea>
+            </label>
+        </section>
+
+        <section class="wizard-step" data-step="2" hidden>
+            <h2>3. Teilnehmer</h2>
+            <div id="competitors"></div>
+            <button id="add-competitor" type="button">Teilnehmer hinzufuegen</button>
+        </section>
+
+        <section class="wizard-step" data-step="3" hidden>
+            <h2>4. Teams</h2>
+            <div id="teams"></div>
+            <button id="add-team" type="button">Team hinzufuegen</button>
+        </section>
+
+        <section class="wizard-step" data-step="4" hidden>
+            <h2>5. Pruefen</h2>
+            <div id="review"></div>
+            <p class="notice">Die Teilnahmegebuehr wird separat gemaess Ausschreibung bezahlt.</p>
+        </section>
+
+        <div class="wizard-nav">
+            <button id="previous-step" type="button" hidden>Zurueck</button>
+            <button id="next-step" type="button">Weiter</button>
+            <button id="submit-registration" type="submit" hidden>Anmeldung absenden</button>
+        </div>
+    </form>
 </div>
+
+@section Scripts {
+    @if (Model.InitialRegistrationPayload is not null)
+    {
+        <script>window.initialRegistrationPayload = @Html.Raw(JsonSerializer.Serialize(Model.InitialRegistrationPayload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));</script>
+    }
+    <script src="~/js/registration-form.js" asp-append-version="true"></script>
+}

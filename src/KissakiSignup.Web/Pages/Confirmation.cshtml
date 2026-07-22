@@ -1,0 +1,12 @@
+@page "{id:guid}"
+@model ConfirmationModel
+@{
+    ViewData["Title"] = "Anmeldung gespeichert";
+}
+
+<div class="form-shell">
+    <h1>Anmeldung gespeichert</h1>
+    <p>Ihre Anmeldung wurde gespeichert.</p>
+    <p><a href="/edit/@Model.EditToken">Private Anmeldung bearbeiten</a></p>
+    <p class="notice">Die Teilnahmegebuehr wird separat gemaess Ausschreibung bezahlt.</p>
+</div>
