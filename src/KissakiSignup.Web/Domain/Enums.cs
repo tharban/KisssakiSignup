@@ -4,7 +4,9 @@ public enum RegistrationStatus
 {
     Draft = 1,
     Submitted = 2,
-    Exported = 3
+    Exported = 3,
+    NeedsReview = 4,
+    Disabled = 5
 }
 
 public enum CompetitionCategory

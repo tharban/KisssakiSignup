@@ -1,5 +1,6 @@
 using KissakiSignup.Web.Data;
 using KissakiSignup.Web.Options;
+using KissakiSignup.Web.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +9,7 @@ builder.Services.AddRazorPages();
 builder.Services.Configure<TournamentOptions>(builder.Configuration.GetSection(TournamentOptions.SectionName));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite($"Data Source={tournament.DatabasePath}"));
+builder.Services.AddSingleton<CsvExportService>();
 
 var app = builder.Build();
 await DbInitializer.InitializeAsync(app.Services);
